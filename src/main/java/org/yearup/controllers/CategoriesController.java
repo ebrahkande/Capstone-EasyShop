@@ -11,77 +11,112 @@ import org.yearup.models.Product;
 
 import java.util.List;
 
-// add the annotations to make this a REST controller
-// add the annotation to make this controller the endpoint for the following url
-// http://localhost:8080/categories
-// add annotation to allow cross site origin requests
 @RestController
 @RequestMapping("/categories")
 @CrossOrigin
 public class CategoriesController
 {
-    private CategoryDao categoryDao;
-    private ProductDao productDao;
+    private final CategoryDao categoryDao;
+    private final ProductDao productDao;
 
-    // Constructor
     @Autowired
-    public CategoriesController(CategoryDao categoryDao, ProductDao productDao) {
+    public CategoriesController(CategoryDao categoryDao, ProductDao productDao)
+    {
         this.categoryDao = categoryDao;
         this.productDao = productDao;
     }
 
-    // Handle GET requests to /categories
+
+    // GET /categories
+    // Returns all categories (public)
+
     @GetMapping
     @PreAuthorize("permitAll()")
     public List<Category> getAll()
     {
         return categoryDao.getAllCategories();
-
     }
 
-    // Handle GET requests to /categories {id}
+
+    // GET /categories/{id}
+    // Returns a single category by ID (public)
+
     @GetMapping("/{id}")
     @PreAuthorize("permitAll()")
     public Category getById(@PathVariable int id)
     {
-        return categoryDao.getById(id);
+        Category category = categoryDao.getById(id);
 
-    }
-
-    // the url to return all products in category 1 would look like this
-    // https://localhost:8080/categories/1/products
-    @GetMapping("{categoryId}/products")
-    public List<Product> getProductsById(@PathVariable int categoryId)
-    {
-        return productDao.listByCategoryId(categoryId);
-    }
-
-    // add annotation to call this method for a POST action
-    // add annotation to ensure that only an ADMIN can call this function
-    @PostMapping
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public Category addCategory(@RequestBody Category category)
-    {
-        categoryDao.create(category);
+        if (category == null)
+        {
+            throw new RuntimeException("Category not found with id: " + id);
+        }
 
         return category;
     }
 
-    // add annotation to call this method for a PUT (update) action - the url path must include the categoryId
-    // add annotation to ensure that only an ADMIN can call this function
-    @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public void updateCategory(@PathVariable int id, @RequestBody Category category)
+
+    // GET /categories/{categoryId}/products
+    // Returns all products belonging to a category
+
+    @GetMapping("/{categoryId}/products")
+    @PreAuthorize("permitAll()")
+    public List<Product> getProductsByCategory(@PathVariable int categoryId)
     {
-        categoryDao.update(id,category);
+        return productDao.listByCategoryId(categoryId);
     }
-    // add annotation to call this method for a DELETE action - the url path must include the categoryId
-    // add annotation to ensure that only an ADMIN can call this function
-    @DeleteMapping("{id}")
-    @PreAuthorize("hasRolE('ROLE_ADMIN')")
+
+
+    // POST /categories
+    // ADMIN ONLY — Create a new category
+
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Category addCategory(@RequestBody Category category)
+    {
+        return categoryDao.create(category);
+    }
+
+
+    // PUT /categories/{id}
+    // ADMIN ONLY — Update an existing category
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Category updateCategory(@PathVariable int id, @RequestBody Category category)
+    {
+        // Check if category exists before updating
+        Category existing = categoryDao.getById(id);
+
+        if (existing == null)
+        {
+            throw new RuntimeException("Cannot update — category not found with id: " + id);
+        }
+
+        // Ensure the ID in the URL is used
+        category.setCategoryId(id);
+
+        return categoryDao.update(id, category);
+    }
+
+
+    // DELETE /categories/{id}
+    // ADMIN ONLY — Delete a category
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteCategory(@PathVariable int id)
     {
+        Category existing = categoryDao.getById(id);
+
+        if (existing == null)
+        {
+            throw new RuntimeException("Cannot delete — category not found with id: " + id);
+        }
+
         categoryDao.delete(id);
     }
 }
+
